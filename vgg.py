@@ -4,8 +4,14 @@ import tensorflow as tf
 import numpy as np
 import scipy.io
 
-VGG19_LAYERS = (
-    'conv1_1', 'relu1_1', 'conv1_2', 'relu1_2', 'pool1',
+#kernel = mathematical func you apply with convolutions (defines shape of the convolutional distribution)
+#conv = convolutionnal layer
+#relu = rectified linear unit
+#pool = type of pooling (average / max / min, etc. )
+
+
+VGG19_LAYERS = (                                                #ici, classés ; /!\ dans dictionnaire : ordre alphabétique /!\
+    'conv1_1', 'relu1_1', 'conv1_2', 'relu1_2', 'pool1',        #tuple
 
     'conv2_1', 'relu2_1', 'conv2_2', 'relu2_2', 'pool2',
 
@@ -17,28 +23,29 @@ VGG19_LAYERS = (
 
     'conv5_1', 'relu5_1', 'conv5_2', 'relu5_2', 'conv5_3',
     'relu5_3', 'conv5_4', 'relu5_4'
-)
+)                                                               
 
 def load_net(data_path):
-    data = scipy.io.loadmat(data_path)
-    if not all(i in data for i in ('layers', 'classes', 'normalization')):
+    data = scipy.io.loadmat(data_path)      #ouvre le fichier matlab à cette adresse    #data = dictionnaire contenant 'layers', 'classes' et 'normalization'
+    if not all(i in data for i in ('layers', 'classes', 'normalization')):     #Erreur de fichier
         raise ValueError("You're using the wrong VGG19 data. Please follow the instructions in the README to download the correct data.")
-    mean = data['normalization'][0][0][0]
-    mean_pixel = np.mean(mean, axis=(0, 1))
-    weights = data['layers'][0]
-    return weights, mean_pixel
+    mean = data['normalization'][0][0][0]   #taille (.,.,3)
+    mean_pixel = np.mean(mean, axis=(0, 1)) #~moyenne des valeurs contenues dans les 3 "colonnes" de l'array mean, càd avec pour axe (0,1)=(dim0,dim1)
+    weights = data['layers'][0]             
+    return weights, mean_pixel          #weights.shape[1]=infty       
+
 
 def net_preloaded(weights, input_image, pooling):
-    net = {}
-    current = input_image
-    for i, name in enumerate(VGG19_LAYERS):
-        kind = name[:4]
+    net = {}                     #dictionnaire vide
+    current = input_image        #tf.placeholder
+    for i, name in enumerate(VGG19_LAYERS):     #enumerate => liste de couples (numéro de l'elt,elt)
+        kind = name[:4]                         #4 premières lettres du nom (=> sans les chiffres => conv / relu / pool)
         if kind == 'conv':
             kernels, bias = weights[i][0][0][0][0]
             # matconvnet: weights are [width, height, in_channels, out_channels]
             # tensorflow: weights are [height, width, in_channels, out_channels]
-            kernels = np.transpose(kernels, (1, 0, 2, 3))
-            bias = bias.reshape(-1)
+            kernels = np.transpose(kernels, (1, 0, 2, 3))  #kernels.shape=(dim0,dim1,dim2,dim3) --> kernels.shape=(dim1,dim0,dim2,dim3)
+            bias = bias.reshape(-1)                        #bias=array (dim 1,.) --> bias=array(dim .,) => ~ liste
             current = _conv_layer(current, kernels, bias)
         elif kind == 'relu':
             current = tf.nn.relu(current)

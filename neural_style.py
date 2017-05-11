@@ -13,21 +13,25 @@ from argparse import ArgumentParser
 from PIL import Image
 
 # default arguments
-CONTENT_WEIGHT = 5e0
-CONTENT_WEIGHT_BLEND = 1
-STYLE_WEIGHT = 5e2
+CONTENT_WEIGHT = 5e0  #5e0 (=> importance du contenu par rapp. au style)      (= ALPHA/2)
+CONTENT_WEIGHT_BLEND = 1     #prise en compte des différentes images
+STYLE_WEIGHT = 5e2    #5e2 (=> importance du style par rapp. au contenu)      (= k*BETA)
 TV_WEIGHT = 1e2
 STYLE_LAYER_WEIGHT_EXP = 1
 LEARNING_RATE = 1e1
-BETA1 = 0.89
-BETA2 = 0.999
+BETA1 = 0.89    #0,89 (BETA1 diminue => trop netteté, flou diminue, couleurs !=)
+BETA2 = 0.999     #0,999
 EPSILON = 1e-08
-STYLE_SCALE = 1.0
+STYLE_SCALE = 1.0    #taille de style
 ITERATIONS = 1000
 VGG_PATH = 'imagenet-vgg-verydeep-19.mat'
-POOLING = 'max'
+POOLING = 'max'    #average pooling (avg) meilleur que max car améliore le gradient flow
+#WIDTH=None    (WIDTH=content_image.shape[1])
 
-def build_parser():
+
+print("\n")
+
+def build_parser():       #definition optional arguments
     parser = ArgumentParser()
     parser.add_argument('--content',
             dest='content', help='content image',
@@ -37,14 +41,14 @@ def build_parser():
             nargs='+', help='one or more style images',
             metavar='STYLE', required=True)
     parser.add_argument('--output',
-            dest='output', help='output path',
+            dest='output', help='output path (.jpg)',
             metavar='OUTPUT', required=True)
     parser.add_argument('--iterations', type=int,
             dest='iterations', help='iterations (default %(default)s)',
             metavar='ITERATIONS', default=ITERATIONS)
     parser.add_argument('--print-iterations', type=int,
             dest='print_iterations', help='statistics printing frequency',
-            metavar='PRINT_ITERATIONS')
+            metavar='PRINT_ITERATIONS')                                        #fréquence à laquelle on affiche les loss instantannées
     parser.add_argument('--checkpoint-output',
             dest='checkpoint_output', help='checkpoint output format, e.g. output%%s.jpg',
             metavar='OUTPUT')
@@ -102,6 +106,13 @@ def build_parser():
     parser.add_argument('--pooling',
             dest='pooling', help='pooling layer configuration: max or avg (default %(default)s)',
             metavar='POOLING', default=POOLING)
+    parser.add_argument('--dest-fig',
+            dest='dest_fig', help="name of the graph's file ",
+            metavar='FIGURE DESTINATION')
+    parser.add_argument('--dest-txt',
+            dest='dest_txt', help="name of the text's file ",
+            metavar='TEXT DESTINATION')
+    
     return parser
 
 
@@ -109,37 +120,57 @@ def main():
     parser = build_parser()
     options = parser.parse_args()
 
-    if not os.path.isfile(options.network):
+    if not os.path.isfile(options.network):             #Test Existence du réseau
         parser.error("Network %s does not exist. (Did you forget to download it?)" % options.network)
 
     content_image = imread(options.content)
-    style_images = [imread(style) for style in options.styles]
-
+    style_images = [imread(style) for style in options.styles] #Si plusieurs images de style
+    print("content_image.shape ",content_image.shape)
+    i=0
+    for style in options.styles:
+        print("style_image n.",i+1," ",style_images[i].shape)
+        i=i+1
+        
     width = options.width
-    if width is not None:
+    print("width",width)
+    if width is not None:                                               #Modifie la taille de l'image de base
         new_shape = (int(math.floor(float(content_image.shape[0]) /
                 content_image.shape[1] * width)), width)
-        content_image = scipy.misc.imresize(content_image, new_shape)
+        print("newshape",new_shape)
+        content_image = scipy.misc.imresize(content_image, new_shape) #Remplace les 2 1ers éléments de content_image.shape par ceux de new_shape
     target_shape = content_image.shape
-    for i in range(len(style_images)):
+    print("targetshape",target_shape)
+    
+    for i in range(len(style_images)): #pour chaque image de style, change format de l'array
         style_scale = STYLE_SCALE
         if options.style_scales is not None:
             style_scale = options.style_scales[i]
-        style_images[i] = scipy.misc.imresize(style_images[i], style_scale *
+        print("style_scale",style_scale)
+        print("style_images[i].shape[1]",style_images[i].shape[1])
+        print("coeff", style_scale *
                 target_shape[1] / style_images[i].shape[1])
+        style_images[i] = scipy.misc.imresize(style_images[i], style_scale *
+                target_shape[1] / style_images[i].shape[1])     #Multiplie les 2 1ers éléments de style_images[i].shape par coeff
+        print("style_images[",i,"].shape",style_images[i].shape)
+        
 
-    style_blend_weights = options.style_blend_weights
+    style_blend_weights = options.style_blend_weights #liste
     if style_blend_weights is None:
         # default is equal weights
-        style_blend_weights = [1.0/len(style_images) for _ in style_images]
+        style_blend_weights = [1.0/len(style_images) for _ in style_images] #liste à n élts (n=nb d'images de style) = part de chaque image de style dans l'image finale
+        print("(None) style_blend_weights",style_blend_weights)
     else:
+        print("style_blend_weights",style_blend_weights)
         total_blend_weight = sum(style_blend_weights)
+        print("total_blend_weight",total_blend_weight)
         style_blend_weights = [weight/total_blend_weight
-                               for weight in style_blend_weights]
+                               for weight in style_blend_weights] #=>sum(style_blend_weights)=1
+        print("style_blend_weights",style_blend_weights)
 
     initial = options.initial
     if initial is not None:
         initial = scipy.misc.imresize(imread(initial), content_image.shape[:2])
+        print("initial.shape",initial.shape)
         # Initial guess is specified, but not noiseblend - no noise should be blended
         if options.initial_noiseblend is None:
             options.initial_noiseblend = 0.0
@@ -149,7 +180,9 @@ def main():
             options.initial_noiseblend = 1.0
         if options.initial_noiseblend < 1.0:
             initial = content_image
-
+    print("options.initial_noiseblend",options.initial_noiseblend)
+    print("\n")
+    
     if options.checkpoint_output and "%s" not in options.checkpoint_output:
         parser.error("To save intermediate images, the checkpoint output "
                      "parameter must contain `%s` (e.g. `foo%s.jpg`)")
@@ -172,29 +205,35 @@ def main():
         beta1=options.beta1,
         beta2=options.beta2,
         epsilon=options.epsilon,
-        pooling=options.pooling,
+        pooling=options.pooling,       
+        output=options.output,
+        dest_txt=options.dest_txt,
+        dest_fig=options.dest_fig,        #ajout personnel
         print_iterations=options.print_iterations,
-        checkpoint_iterations=options.checkpoint_iterations
+        checkpoint_iterations=options.checkpoint_iterations,
     ):
         output_file = None
         combined_rgb = image
         if iteration is not None:
-            if options.checkpoint_output:
-                output_file = options.checkpoint_output % iteration
-        else:
+            if options.checkpoint_output:                               #enregistre des images intermédiaires
+                output_file = options.checkpoint_output % iteration     #nom des images intermédiaires
+                
+        else:                                                           
             output_file = options.output
         if output_file:
             imsave(output_file, combined_rgb)
+        
 
 
 def imread(path):
-    img = scipy.misc.imread(path).astype(np.float)
+    img = scipy.misc.imread(path).astype(np.float)   #lit le fichier image comme un array
+    #imread(path, flatten=True) : Noir&Blanc (supprime couleurs des fichiers de départ)
     if len(img.shape) == 2:
-        # grayscale
-        img = np.dstack((img,img,img))
-    elif img.shape[2] == 4:
+        # grayscale (si image de type B&W)
+        img = np.dstack((img,img,img)) #On met sous la forme RVB
+    elif img.shape[2] == 4:      #3eme dimension de l'array : RVB+alpha (transparence)               
         # PNG with alpha channel
-        img = img[:,:,:3]
+        img = img[:,:,:3]     #on supprime le parametre alpha
     return img
 
 
