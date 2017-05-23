@@ -164,7 +164,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
                     tv_x_size))
                 
         # overall loss
-        loss = content_loss + style_loss + tv_loss         #total
+        loss = content_loss + style_loss + tv_loss         #total         #make alpha etc appear
 
         # optimizer setup
         train_step = tf.train.AdamOptimizer(learning_rate, beta1, beta2, epsilon).minimize(loss)       #opération qui met à jour les variables pour que total loss soit minimisé 
@@ -323,5 +323,4 @@ def gray2rgb(gray):
 #TEST : EXECUTION EN ENLEVANT CERTAINS LOSSES                              OK (petites losses mais normal car on en supprime)
 #TEST : CHANGER LAYERS (RELU4_2 ; RELU5_2) LINES 119-120                  ???
 #TEST : CHANGER OPTIMISEUR TENSORFLOW (EX: GRADIENTDESCENTOPTIMIZER)       :     ne marche pas (best.reshape : 'NoneType' object has no attribute 'reshape')    (=normal !)
-
 """
