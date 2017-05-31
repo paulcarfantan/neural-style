@@ -5,6 +5,7 @@ import vgg
 import tensorflow as tf
 import numpy as np
 
+from scipy.sparse import csr_matrix
 from sys import stderr
 
 from PIL import Image
@@ -18,9 +19,10 @@ except NameError:
     from functools import reduce
 
 
-def stylize(network, initial, initial_noiseblend, content, styles, preserve_colors, iterations,
-        content_weight, content_weight_blend, style_weight, style_layer_weight_exp, style_blend_weights, tv_weight,
-        learning_rate, beta1, beta2, epsilon, pooling,
+def stylize(network, initial, initial_noiseblend, content, styles, matte,
+        preserve_colors, iterations, content_weight, content_weight_blend,
+        style_weight, style_layer_weight_exp, style_blend_weights, tv_weight,
+        matte_weight, learning_rate, beta1, beta2, epsilon, pooling,
         print_iterations=None, checkpoint_iterations=None):
     """
     Stylize images.
@@ -73,6 +75,14 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
                 gram = np.matmul(features.T, features) / features.size
                 style_features[i][layer] = gram
 
+    # import laplacian matte
+    loader = np.load(matte)
+    lcoo = csr_matrix((loader['data'], loader['indices'], loader['indptr']),
+                      shape=loader['shape']).tocoo()
+    lindices = np.mat([coo.row, coo.col]).transpose()
+    laplacian = tf.sparse_placeholder(tf.float32)
+    lfull = tf.sparse_tensor_to_dense(laplacian)
+
     initial_content_noise_coeff = 1.0 - initial_noiseblend
 
     # make stylized image using backpropogation
@@ -115,6 +125,17 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
                 style_losses.append(style_layers_weights[style_layer] * 2 * tf.nn.l2_loss(gram - style_gram) / style_gram.size)
             style_loss += style_weight * style_blend_weights[i] * reduce(tf.add, style_losses)
 
+        # matting lapacian loss
+        matt_loss = 0
+        matt_losses = []
+        for i in range(3):
+            imr = tf.reshape(image[:,:,i,0], [-1, 1])
+            matt_losses.append(
+                tf.sparse_matmul(tf.sparse_matmul(tf.transpose(imr), lfull), imr)[0][0]
+            )
+        matt_loss += matt_weight * reduce(tf.add, matt_losses)
+
+
         # total variation denoising
         tv_y_size = _tensor_size(image[:,1:,:,:])
         tv_x_size = _tensor_size(image[:,:,1:,:])
@@ -145,7 +166,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
                 print_progress()
             for i in range(iterations):
                 stderr.write('Iteration %4d/%4d\n' % (i + 1, iterations))
-                train_step.run()
+                train_step.run(feed_dict={laplacian: (lindices, lcoo.data, lcoo.shape)})
 
                 last_step = (i == iterations - 1)
                 if last_step or (print_iterations and i % print_iterations == 0):
