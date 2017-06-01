@@ -128,7 +128,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
         matte_loss = 0
         matte_losses = []
         for i in range(3):
-            imr = tf.reshape(image[:,:,i,0], [-1, 1])
+            imr = tf.reshape(image[:,:,:,i], [-1, 1])
             matte_losses.append(
                 tf.sparse_matmul(tf.sparse_matmul(tf.transpose(imr), lfull), imr)[0][0]
             )
@@ -144,7 +144,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
                 (tf.nn.l2_loss(image[:,:,1:,:] - image[:,:,:shape[2]-1,:]) /
                     tv_x_size))
         # overall loss
-        loss = content_loss + style_loss + tv_loss
+        loss = content_loss + style_loss + matte_loss + tv_loss
 
         # optimizer setup
         train_step = tf.train.AdamOptimizer(learning_rate, beta1, beta2, epsilon).minimize(loss)
@@ -152,9 +152,11 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
         def print_progress():
             stderr.write('  content loss: %g\n' % content_loss.eval())
             stderr.write('    style loss: %g\n' % style_loss.eval())
-            stderr.write('    matte loss: %g\n' % matte_loss.eval())
+            stderr.write('    matte loss: %g\n' % matte_loss.eval(
+                feed_dict={laplacian: (lindices, lcoo.data, lcoo.shape)}))
             stderr.write('       tv loss: %g\n' % tv_loss.eval())
-            stderr.write('    total loss: %g\n' % loss.eval())
+            stderr.write('    total loss: %g\n' % loss.eval(
+                feed_dict={laplacian: (lindices, lcoo.data, lcoo.shape)}))
 
         # optimization
         best_loss = float('inf')
