@@ -37,7 +37,7 @@ def build_parser():
             dest='styles',
             nargs='+', help='one or more style images',
             metavar='STYLE', required=True)
-    parser.add_argument('--matte', type=float,
+    parser.add_argument('--matte',
             dest='matte', help='matte laplacian',
             metavar='MATTE', required=True)
     parser.add_argument('--output',

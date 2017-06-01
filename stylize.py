@@ -75,14 +75,6 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
                 gram = np.matmul(features.T, features) / features.size
                 style_features[i][layer] = gram
 
-    # import laplacian matte
-    loader = np.load(matte)
-    lcoo = csr_matrix((loader['data'], loader['indices'], loader['indptr']),
-                      shape=loader['shape']).tocoo()
-    lindices = np.mat([coo.row, coo.col]).transpose()
-    laplacian = tf.sparse_placeholder(tf.float32)
-    lfull = tf.sparse_tensor_to_dense(laplacian)
-
     initial_content_noise_coeff = 1.0 - initial_noiseblend
 
     # make stylized image using backpropogation
@@ -126,14 +118,21 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
             style_loss += style_weight * style_blend_weights[i] * reduce(tf.add, style_losses)
 
         # matting lapacian loss
-        matt_loss = 0
-        matt_losses = []
+        loader = np.load(matte)
+        lcoo = csr_matrix((loader['data'], loader['indices'], loader['indptr']),
+                        shape=loader['shape']).tocoo()
+        lindices = np.mat([lcoo.row, lcoo.col]).transpose()
+        laplacian = tf.sparse_placeholder(tf.float32)
+        lfull = tf.sparse_tensor_to_dense(laplacian)
+
+        matte_loss = 0
+        matte_losses = []
         for i in range(3):
             imr = tf.reshape(image[:,:,i,0], [-1, 1])
-            matt_losses.append(
+            matte_losses.append(
                 tf.sparse_matmul(tf.sparse_matmul(tf.transpose(imr), lfull), imr)[0][0]
             )
-        matt_loss += matt_weight * reduce(tf.add, matt_losses)
+        matte_loss += matte_weight * reduce(tf.add, matte_losses)
 
 
         # total variation denoising
