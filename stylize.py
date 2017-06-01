@@ -122,15 +122,16 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
         lcoo = csr_matrix((loader['data'], loader['indices'], loader['indptr']),
                         shape=loader['shape']).tocoo()
         lindices = np.mat([lcoo.row, lcoo.col]).transpose()
-        laplacian = tf.sparse_placeholder(tf.float32)
-        lfull = tf.sparse_tensor_to_dense(laplacian)
+        lvalues = tf.constant(lcoo.data,  dtype=tf.float32)
+        laplacian = tf.SparseTensor(indices=lindices, values=lvalues, dense_shape=lcoo.shape)
 
         matte_loss = 0
         matte_losses = []
         for i in range(3):
             imr = tf.reshape(image[:,:,:,i], [-1, 1])
             matte_losses.append(
-                tf.sparse_matmul(tf.sparse_matmul(tf.transpose(imr), lfull), imr)[0][0]
+                tf.matmul(tf.transpose(imr),
+                          tf.sparse_tensor_dense_matmul(laplacian, imr))[0][0]
             )
         matte_loss += matte_weight * reduce(tf.add, matte_losses)
 
@@ -152,11 +153,9 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
         def print_progress():
             stderr.write('  content loss: %g\n' % content_loss.eval())
             stderr.write('    style loss: %g\n' % style_loss.eval())
-            stderr.write('    matte loss: %g\n' % matte_loss.eval(
-                feed_dict={laplacian: (lindices, lcoo.data, lcoo.shape)}))
+            stderr.write('    matte loss: %g\n' % matte_loss.eval())
             stderr.write('       tv loss: %g\n' % tv_loss.eval())
-            stderr.write('    total loss: %g\n' % loss.eval(
-                feed_dict={laplacian: (lindices, lcoo.data, lcoo.shape)}))
+            stderr.write('    total loss: %g\n' % loss.eval())
 
         # optimization
         best_loss = float('inf')
@@ -168,7 +167,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
                 print_progress()
             for i in range(iterations):
                 stderr.write('Iteration %4d/%4d\n' % (i + 1, iterations))
-                train_step.run(feed_dict={laplacian: (lindices, lcoo.data, lcoo.shape)})
+                train_step.run()
 
                 last_step = (i == iterations - 1)
                 if last_step or (print_iterations and i % print_iterations == 0):
