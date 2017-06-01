@@ -152,6 +152,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
         def print_progress():
             stderr.write('  content loss: %g\n' % content_loss.eval())
             stderr.write('    style loss: %g\n' % style_loss.eval())
+            stderr.write('    matte loss: %g\n' % matte_loss.eval())
             stderr.write('       tv loss: %g\n' % tv_loss.eval())
             stderr.write('    total loss: %g\n' % loss.eval())
 
