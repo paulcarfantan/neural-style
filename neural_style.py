@@ -17,6 +17,7 @@ CONTENT_WEIGHT = 5e0  #5e0 (=> importance du contenu par rapp. au style)      (=
 CONTENT_WEIGHT_BLEND = 1     #prise en compte des différentes images
 STYLE_WEIGHT = 5e2    #5e2 (=> importance du style par rapp. au contenu)      (= k*BETA)
 TV_WEIGHT = 1e2
+MATTE_WEIGHT = 1e1
 STYLE_LAYER_WEIGHT_EXP = 1
 LEARNING_RATE = 1e1
 BETA1 = 0.89    #0,89 (BETA1 diminue => trop netteté, flou diminue, couleurs !=)
@@ -40,6 +41,9 @@ def build_parser():       #definition optional arguments
             dest='styles',
             nargs='+', help='one or more style images',
             metavar='STYLE', required=True)
+    parser.add_argument('--matte',
+            dest='matte', help='matte laplacian',
+            metavar='MATTE', required=True)
     parser.add_argument('--output',
             dest='output', help='output path (.jpg)',
             metavar='OUTPUT', required=True)
@@ -83,6 +87,9 @@ def build_parser():       #definition optional arguments
     parser.add_argument('--tv-weight', type=float,
             dest='tv_weight', help='total variation regularization weight (default %(default)s)',
             metavar='TV_WEIGHT', default=TV_WEIGHT)
+    parser.add_argument('--matte-weight', type=float,
+            dest='matte_weight', help='laplacian matte weight (default %(default)s)',
+            metavar='MATTE_WEIGHT', default=MATTE_WEIGHT)
     parser.add_argument('--learning-rate', type=float,
             dest='learning_rate', help='learning rate (default %(default)s)',
             metavar='LEARNING_RATE', default=LEARNING_RATE)
@@ -193,6 +200,7 @@ def main():
         initial_noiseblend=options.initial_noiseblend,
         content=content_image,
         styles=style_images,
+        matte=options.matte,
         preserve_colors=options.preserve_colors,
         iterations=options.iterations,
         content_weight=options.content_weight,
@@ -201,6 +209,7 @@ def main():
         style_layer_weight_exp=options.style_layer_weight_exp,
         style_blend_weights=style_blend_weights,
         tv_weight=options.tv_weight,
+        matte_weight=options.matte_weight,
         learning_rate=options.learning_rate,
         beta1=options.beta1,
         beta2=options.beta2,

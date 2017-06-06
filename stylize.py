@@ -14,6 +14,7 @@ import vgg
 import tensorflow as tf
 import numpy as np
 
+from scipy.sparse import csr_matrix
 from sys import stderr
 
 from PIL import Image
@@ -31,9 +32,11 @@ except NameError:
     from functools import reduce
 
 
-def stylize(network, initial, initial_noiseblend, content, styles, preserve_colors, iterations,
-        content_weight, content_weight_blend, style_weight, style_layer_weight_exp, style_blend_weights, tv_weight,
-        learning_rate, beta1, beta2, epsilon, pooling, output, dest_txt, dest_fig,
+def stylize(network, initial, initial_noiseblend, content, styles, matte,
+        preserve_colors, iterations, content_weight, content_weight_blend,
+        style_weight, style_layer_weight_exp, style_blend_weights, tv_weight,
+        matte_weight, learning_rate, beta1, beta2, epsilon, pooling,
+        output, dest_txt, dest_fig,
         print_iterations=None, checkpoint_iterations=None):
     """
     Stylize images.
@@ -150,8 +153,28 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
             #incrémentation de style_loss : reduce=sum(err layers de im[i]) ; style_weight = poids du style par rapp au content ; style_blend_weights[i] = poids de l'im. i par rapp aux autres
             # += => on somme les losses de toutes les images
 
+        # matting lapacian loss
+        loader = np.load(matte)
+        lcoo = csr_matrix((loader['data'], loader['indices'], loader['indptr']),
+                        shape=loader['shape']).tocoo()
+        lindices = np.mat([lcoo.row, lcoo.col]).transpose()
+        lvalues = tf.constant(lcoo.data,  dtype=tf.float32)
+        laplacian = tf.SparseTensor(indices=lindices, values=lvalues, dense_shape=lcoo.shape)
+
+        matte_loss = 0
+        matte_losses = []
+        for i in range(3):
+            imr = tf.reshape(image[:,:,:,i], [-1, 1])
+            matte_losses.append(
+                tf.matmul(tf.transpose(imr),
+                          tf.sparse_tensor_dense_matmul(laplacian, imr))[0][0]
+            )
+        matte_loss += matte_weight * reduce(tf.add, matte_losses)
+
+
         # total variation denoising                       (pas très importante : à remplacer par une autre loss ?)
         print("\n total variation denoising")            #(possible de désactiver la tv loss avec la commande --tv-weight 0)   
+
         tv_y_size = _tensor_size(image[:,1:,:,:])
         print(tv_y_size)
         tv_x_size = _tensor_size(image[:,:,1:,:])
@@ -164,7 +187,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
                     tv_x_size))
                 
         # overall loss
-        loss = content_loss + style_loss + tv_loss         #total         #make alpha etc appear
+        loss = content_loss + style_loss + matte_loss + tv_loss         #total         #make alpha etc appear
 
         # optimizer setup
         train_step = tf.train.AdamOptimizer(learning_rate, beta1, beta2, epsilon).minimize(loss)       #opération qui met à jour les variables pour que total loss soit minimisé 
@@ -174,6 +197,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
         def print_progress():
             stderr.write('  content loss: %g\n' % content_loss.eval())
             stderr.write('    style loss: %g\n' % style_loss.eval())
+            stderr.write('    matte loss: %g\n' % matte_loss.eval())
             stderr.write('       tv loss: %g\n' % tv_loss.eval())
             stderr.write('    total loss: %g\n' % loss.eval())
         
