@@ -29,7 +29,7 @@ def rgb2gray(rgb):
         return rgb
 
 
-mb_size = 10                                   
+mb_size = 64                                   
 Z_dim = 100                                    
 #X_dim = mnist.train.images.shape[1]    # ex: 784=28x28
 X_dim = 65536   #256x256                       
@@ -39,8 +39,7 @@ h_dim = 128
 places = os.listdir('./abbey/')
 data=[]
 for i in range(0,len(places)):
-    places[i] = os.path.join('./abbey/',places[i])
-    data.append(np.reshape(rgb2gray(imread(places[i])),(1,X_dim)))
+    data.append(np.reshape(rgb2gray(imread('./abbey/' + places[i])),(1,X_dim)))
 
 
 def xavier_init(size):
@@ -141,7 +140,7 @@ if not os.path.exists('out/'):
 i = 0
 start = time.time()
 zerotime = time.time()
-num_it = 1500
+num_it = 100000
 
 for it in range(num_it):
     if it % 1000 == 0:
@@ -167,10 +166,14 @@ for it in range(num_it):
         plt.savefig('./newdataset/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
         i += 1
         plt.close(fig)
+    
+    b = it % (int(len(data)/mb_size))     # it congru a b modulo ...
+    if (b+1)*mb_size > len(data) : # (si pas assez d'éléments dans data pour finir le batch)
+        np.random.shuffle(data)
 
+    liste = [data[i] for i in range(b,b+mb_size)]  # /!\ cas ou num_it*mb_size > nombre de samples (len(places) ?) /!\
+    X_mb = np.vstack(liste)     # shape : (mb_size, X_dim)
 
-    liste = [data[i] for i in range(it*mb_size,(it+1)*mb_size)]  #/!\ cas ou num_it*mb_size > nombre de samples (len(places) ?) /!\
-    X_mb = np.vstack(liste)  #shape : (mb_size, X_dim)
    # X_mb, _ = mnist.train.next_batch(mb_size)
    # y_mb = labels des images du dataset original
 
@@ -187,11 +190,11 @@ for it in range(num_it):
         #print('y = ',y)
         if it != 0 and it != num_it:     # temps d'execution
             t = (num_it - it) * delta / 1000
-            print('time since last printing : ',delta,' sec)')
-            print('ends approximately in ',t,' sec')
-            print('( = ',t / 60,' min )')
+            print('time since last printing : {:.1} '.format(delta),' sec)')
+            print('ends approximately in : {:.1} '.format(t),' sec')
+            print('( = {:.2}'.format(t/60),' min )')
             print((start - zerotime) * (num_it - it) / it,' sec')
-        print('y_sample = ',y_sample)
+        #print('y_sample = ',y_sample)
         #print('samples[1,:].shape = ',samples[1,:].shape)
         #print('samples[1,:] = ',samples[1,:])
         print('samples.shape = ',samples.shape)
