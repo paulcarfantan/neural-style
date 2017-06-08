@@ -29,7 +29,7 @@ def rgb2gray(rgb):
         return rgb
 
 
-mb_size = 64                                   
+mb_size = 10  # 64                   
 Z_dim = 100                                    
 #X_dim = mnist.train.images.shape[1]    # ex: 784=28x28
 X_dim = 65536   #256x256                       
@@ -101,8 +101,10 @@ def sample_Z(m, n):
 
 
 def plot(samples):
-    fig = plt.figure(figsize=(4, 4))
-    gs = gridspec.GridSpec(4, 4)
+    #for i, sample in enumerate(samples):
+        #plt.imshow(sample.reshape(256,256), cmap='Greys_r')
+    fig = plt.figure(figsize=(4,4))
+    gs = gridspec.GridSpec(4,4)
     gs.update(wspace=0.05, hspace=0.05)
 
     for i, sample in enumerate(samples):
@@ -137,10 +139,10 @@ sess.run(tf.global_variables_initializer())
 if not os.path.exists('out/'):
     os.makedirs('out/')
 
-i = 0
+i = 0 
 start = time.time()
 zerotime = time.time()
-num_it = 100000
+num_it = 10000
 
 for it in range(num_it):
     if it % 1000 == 0:
@@ -190,14 +192,14 @@ for it in range(num_it):
         #print('y = ',y)
         if it != 0 and it != num_it:     # temps d'execution
             t = (num_it - it) * delta / 1000
-            print('time since last printing : {:.1} '.format(delta),' sec)')
-            print('ends approximately in : {:.1} '.format(t),' sec')
-            print('( = {:.2}'.format(t/60),' min )')
+            print('time since last printing : {:.4} '.format(delta),' sec)')
+            print('ends approximately in : {:.4} '.format(t),' sec')
+            print('( = {:.3}'.format(t/60),' min )')
             print((start - zerotime) * (num_it - it) / it,' sec')
         #print('y_sample = ',y_sample)
         #print('samples[1,:].shape = ',samples[1,:].shape)
         #print('samples[1,:] = ',samples[1,:])
-        print('samples.shape = ',samples.shape)
+        #print('samples.shape = ',samples.shape)
         #print('samples[1,:] sum = ',sum(samples[1,:]))
         #print('samples[:,1] sum = ',sum(samples[:,1]))
         #print('X_mb.shape = ',X_mb.shape)

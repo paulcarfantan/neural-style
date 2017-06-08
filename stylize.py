@@ -139,18 +139,19 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
             for style_layer in STYLE_LAYERS:             #STYLE_LAYERS = ('relu1_1', 'relu2_1', 'relu3_1', 'relu4_1', 'relu5_1')
                 layer = net[style_layer]
                 _, height, width, number = map(lambda j: j.value, layer.get_shape())   # "_" => discard the first elt of the tuple
-                        #lambda = definit la fonction qui à j associe j.value ; map applique la fonction à tous les élts de layer.get_shape() ; (get_shape() = shape pour les tf)
+                        #lambda = definit la fonction qui a j associe j.value ; map applique la fonction a tous les élts de layer.get_shape)
                 size = height * width * number
 #                print("number ",number)
 #                print("layer.shape",layer.get_shape())
                 feats = tf.reshape(layer, (-1, number))      #supprime dim0 (=1), dim0=dim1*dim2, dim1=dim3=number      => shape = (dim1*dim2 , number)
 #                print("feats.shape",feats.get_shape())
                 gram = tf.matmul(tf.transpose(feats), feats) / size
-                style_gram = style_features[i][style_layer]                  #style_features = liste de dictionnaires initialisée dans "compute style features in feedforward mode"
+                style_gram = style_features[i][style_layer]  #style_features = liste de dictionnaires initialisée dans "compute style featurs in feedforwardmode"
                 style_losses.append(style_layers_weights[style_layer] * 2 * tf.nn.l2_loss(gram - style_gram) / style_gram.size) #liste contenant les erreurs de tous les layers de l'image i
                 #gram = style representation of generated image ; style_gram = style representation of original image 
             style_loss += style_weight * style_blend_weights[i] * reduce(tf.add, style_losses)   
-            #incrémentation de style_loss : reduce=sum(err layers de im[i]) ; style_weight = poids du style par rapp au content ; style_blend_weights[i] = poids de l'im. i par rapp aux autres
+            #incrémentation de style_loss : reduce=sum(err layers de im[i]) ; style_weight = poids du style par rapp au content 
+            # style_blend_weights[i] = pids de l'im. i par rapp aux autres
             # += => on somme les losses de toutes les images
 
         # matting lapacian loss
@@ -172,7 +173,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
         matte_loss += matte_weight * reduce(tf.add, matte_losses)
 
 
-        # total variation denoising                       (pas très importante : à remplacer par une autre loss ?)
+        # total variation denoising                       (pas très important : a remplacer par une autre loss ?)
         print("\n total variation denoising")            #(possible de désactiver la tv loss avec la commande --tv-weight 0)   
 
         tv_y_size = _tensor_size(image[:,1:,:,:])
@@ -185,19 +186,25 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
                     tv_y_size) +
                 (tf.nn.l2_loss(image[:,:,1:,:] - image[:,:,:shape[2]-1,:]) /
                     tv_x_size))
+
+
+        # GAN loss
+        
+
+
                 
         # overall loss
-        loss = content_loss + style_loss + matte_loss + tv_loss         #total         #make alpha etc appear
+        loss = content_loss + style_loss + matte_loss + tv_loss    # make alpha etc appear (coeffs)
 
         # optimizer setup
-        train_step = tf.train.AdamOptimizer(learning_rate, beta1, beta2, epsilon).minimize(loss)       #opération qui met à jour les variables pour que total loss soit minimisé 
-        #train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)         #ne marche pas                                      #quelles variables ???
-        #train_step = tf.train.MomentumOptimizer(learning_rate, 0.1).minimize(loss)
+        train_step = tf.train.AdamOptimizer(learning_rate, beta1, beta2, epsilon).minimize(loss)       # (opération qui me a jour les variables pour que total loss soit minimis�) 
+         # quelles variables ???
         
         def print_progress():
             stderr.write('  content loss: %g\n' % content_loss.eval())
             stderr.write('    style loss: %g\n' % style_loss.eval())
             stderr.write('    matte loss: %g\n' % matte_loss.eval())
+            stderr.write('      GAN loss: %g\n' % GAN_loss.eval())
             stderr.write('       tv loss: %g\n' % tv_loss.eval())
             stderr.write('    total loss: %g\n' % loss.eval())
         
@@ -209,7 +216,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())    #initialise les variables globales
             stderr.write('Optimization started...\n')
-            if (print_iterations and print_iterations != 0):     #Si on a rentré un pas pour print_iterations, on affiche avant la 1ere iteration les loss de initial
+            if (print_iterations and print_iterations != 0):     #Si on a rentré un pas pour print_iterations, on affiche avant la 1ere iteration les loss e initial
                 print_progress()
                 
             c_loss = []                #initialisation des listes de valeurs de loss
@@ -221,7 +228,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
             for i in range(iterations):
                 
                 stderr.write('Iteration %4d/%4d\n' % (i + 1, iterations))
-                train_step.run()                                               #on minimise loss à chaque itération
+                train_step.run()                                               #on minimise loss a chaque itération
 
                 c_loss.append(content_loss.eval())         #incrémentation des listes de valeurs de loss pour chaque itération
                 s_loss.append(style_loss.eval())
