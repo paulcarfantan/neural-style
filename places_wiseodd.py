@@ -39,7 +39,7 @@ def gray2rgb(gray):
         return gray
 
 
-L_data = 200
+L_data = 1000
 mb_size = 10  # 64                   
 Z_dim = 256                                    
 #X_dim = mnist.train.images.shape[1]    # ex: 784=28x28
@@ -95,7 +95,7 @@ G_W1 = tf.Variable(xavier_init([Z_dim, h_dim])) # + y_dim => generates image + a
 G_b1 = tf.Variable(tf.zeros(shape=[Z_dim, h_dim]))
 
 G_W2 = tf.Variable(xavier_init([h_dim, X_dim]))
-G_b2 = tf.Variable(tf.zeros(shape=[X_dim, X_dim]))    # taille d'une image
+G_b2 = tf.Variable(tf.zeros(shape=[Z_dim, X_dim]))    # taille d'une image
 
 theta_G = [G_W1, G_W2, G_b1, G_b2]
 #G_W1 : shape=(110,128)  ;  G_W2 : shape=(128,784)
@@ -173,15 +173,16 @@ if not os.path.exists('out/'):
     os.makedirs('out/')
 
 i = 0 
-start = time.time()
 zerotime = time.time()
-num_it = 3000
+st = time.time()
+num_it = 10000
+index_in_epoch = 0
 
 for it in range(num_it):
     if it % 1000 == 0:
 
-        delta = time.time() - start
-        start = time.time()
+        delta = time.time() - st
+        st = time.time()
         n_sample = 1
 
         #Z_sample = sample_Z(n_sample, Z_dim)   # random matrix shape (16,100)
@@ -202,34 +203,49 @@ for it in range(num_it):
         i += 1
         plt.close(fig)
     
-    b = it % (int(L_data/mb_size)-1)     # it congru a b modulo ...
-    if it >= L_data/mb_size : # (si pas assez d'éléments dans data pour finir le batch)
-        np.random.shuffle(data)
+    
+    def next_batch(batch_size,index_in_epoch):
+        start = index_in_epoch
+        if start + batch_size > L_data:
+            np.random.shuffle(data)
+            start = 0
+            index_in_epoch = batch_size
+        else:
+            index_in_epoch += batch_size
+        end = index_in_epoch
+        return data[start:end], index_in_epoch
+    
+    X_mb, index_in_epoch = next_batch(mb_size,index_in_epoch)
+    
+    
+    
+#    b = it % (int(L_data/mb_size)-1)     # it congru a b modulo ...
+ #   if it >= L_data/mb_size : # (si pas assez d'éléments dans data pour finir le batch)
+#        np.random.shuffle(data)
 
-    liste = [data[j] for j in range(b*mb_size,(b+1)*mb_size)]  # /!\ cas ou num_it*mb_size > nombre de samples (len(places) ?) /!\
-    X_mb = np.vstack(liste)     # shape : (mb_size, X_dim^2)
+#    liste = [data[j] for j in range(b*mb_size,(b+1)*mb_size)]  # /!\ cas ou num_it*mb_size > nombre de samples (len(places) ?) /!\
+#    X_mb = np.vstack(liste)     # shape : (mb_size, X_dim^2)
 
    # X_mb, _ = mnist.train.next_batch(mb_size)
    # y_mb = labels des images du dataset original
 
     #Z_sample = sample_Z(mb_size, Z_dim)
+    
     content_pre = np.array([vgg.preprocess(gray2rgb(data[i]), vgg_mean_pixel)])
-    _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: liste[0], Z: liste[0], image: content_pre})
-    _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: liste[0]})
+    _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: X_mb[0], Z: X_mb[0], image: content_pre})
+    _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: X_mb[0]})
 
     
     if it % 1000 == 0:
         print('Iter: {}'.format(it))
-        print('D_loss: {:.4}'.format(D_loss_curr))
+        print('D_loss: {:.4}'.format(D_loss_curr),'( includes feat_loss )')
         print('G_loss: {:.4}'.format(G_loss_curr))
         #print('y = ',y)
         if it != 0 and it != num_it:     # temps d'execution
-            t = (num_it - it) * delta / 1000
+            t = (st - zerotime) * (num_it - it) / it
             print('time since last printing : {:.4} '.format(delta),' sec)')
             print('ends approximately in : {:.4} '.format(t),' sec')
-            print('( = {:.3}'.format(t/60),' min )')
-            print('( ',int(t/60),'min',t/60-int(t/60),'sec )')
-            print((start - zerotime) * (num_it - it) / it,' sec')
+            print('(',int(t/60),'min',int((t/60-int(t/60))*60),'sec )')
     #print('y_sample = ',y_sample)
     #print('samples[1,:].shape = ',samples[1,:].shape)
     #print('samples[1,:] = ',samples[1,:])
@@ -240,5 +256,5 @@ for it in range(num_it):
     #print('y_mb.shape = ',y_mb.shape)
     #print('y_mb = ',y_mb)   # y_mb = labels de toutes les images (64) du batch => [0,0,0,0,0,0,0,1,0,0] = label 7
         print()
-
+                                                                                 
 sess.close()
