@@ -55,6 +55,7 @@ for i in range(L_data):
     #data.append(np.reshape(rgb2gray(imread('./abbey/' + places[i])),(1,X_dim)))
     data.append(np.reshape(rgb2gray(imread('./abbey/' + places[i])),(1,X_dim))/256)
 print(data[0])
+
 def xavier_init(size):
     in_dim = size[0]
     xavier_stddev = 1. / tf.sqrt(in_dim / 2.)    #standard deviation of the normal distribution
@@ -67,10 +68,10 @@ X = tf.placeholder(tf.float32, shape=[None, X_dim])
 
 D_W1 = tf.Variable(xavier_init([X_dim, h_dim]))
 # X_dim + y_dim plutôt que X_dim comme ça on train non seulement à dire si l'image appartient ou non au dataset original, MAIS AUSSI dire à quel label elle correspond !
-D_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
+D_b1 = tf.Variable(tf.zeros(shape=[None,h_dim]))
 
 D_W2 = tf.Variable(xavier_init([h_dim, 1]))
-D_b2 = tf.Variable(tf.zeros(shape=[1]))
+D_b2 = tf.Variable(tf.zeros(shape=[None,1]))
 
 theta_D = [D_W1, D_W2, D_b1, D_b2]  # Parameters to optimize
 # => initial : D_W = random & D_b = zeros ; then = optimize to get best discriminator
@@ -92,10 +93,10 @@ def discriminator(x):                                 # Single layer network
 Z = tf.placeholder(tf.float32, shape=[None, Z_dim])
 
 G_W1 = tf.Variable(xavier_init([Z_dim, h_dim])) 
-G_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
+G_b1 = tf.Variable(tf.zeros(shape=[None,h_dim]))
 
 G_W2 = tf.Variable(xavier_init([h_dim, X_dim]))
-G_b2 = tf.Variable(tf.zeros(shape=[X_dim]))
+G_b2 = tf.Variable(tf.zeros(shape=[None,X_dim]))
 
 theta_G = [G_W1, G_W2, G_b1, G_b2]
 
@@ -147,12 +148,15 @@ network = 'imagenet-vgg-verydeep-19.mat'
 vgg_weights, vgg_mean_pixel = vgg.load_net(network)         
 print(5)
 orig_image = tf.placeholder('float', shape = shape)
-orig_content = np.array([vgg.preprocess(gray2rgb(rgb2gray(orig_image)), vgg_mean_pixel)])
+orig_content = vgg.preprocess(orig_image, vgg_mean_pixel)
 print('G_sample.shape',G_sample.shape)
 G_sample = tf.reshape(G_sample,(256,256))
+G_sample = tf.stack([G_sample,G_sample,G_sample],axis=2)
+print('G_sample.shape',G_sample.shape)
+gen_content = np.array([vgg.preprocess(G_sample, vgg_mean_pixel)])
 print('ok')
-gen_content = np.array([vgg.preprocess(gray2rgb(rgb2gray(G_sample)), vgg_mean_pixel)])
-orig_net = vgg.net_preloaded(vgg_weights, orig_content, pooling)
+orig_net = vgg.net_preloaded(vgg_weights, sess.run(orig_content.eval(session=sess), pooling))
+print('ok1')
 gen_net = vgg.net_preloaded(vgg_weights, gen_content, pooling)
 #content_pre = np.array([vgg.preprocess(content, vgg_mean_pixel)])
 #print('content_pre.shape',content_pre.shape)
