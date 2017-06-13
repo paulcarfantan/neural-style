@@ -179,6 +179,10 @@ st = time.time()
 num_it = 10000
 index_in_epoch = 0
 
+saver = tf.train.Saver({
+    "D_W1": D_W1, "D_W2": D_W2, "D_b1": D_b1, "D_b2": D_b2,
+    "G_W1": G_W1, "G_W2": G_W2, "G_b1": G_b1, "G_b2": G_b2})
+
 for it in range(num_it):
     if it % 1000 == 0:
 
@@ -259,5 +263,7 @@ for it in range(num_it):
     #print('y_mb.shape = ',y_mb.shape)
     #print('y_mb = ',y_mb)   # y_mb = labels de toutes les images (64) du batch => [0,0,0,0,0,0,0,1,0,0] = label 7
         print()
-                                                                                 
+
+save_path = saver.save(sess, "out/model.ckpt")
+print("Model saved in file: %s" % save_path)
 sess.close()
