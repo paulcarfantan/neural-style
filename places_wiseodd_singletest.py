@@ -39,13 +39,13 @@ def gray2rgb(gray):
         return gray
 
 
-L_data = 2
-mb_size = 2  # 64                   
+L_data = 10
+mb_size = 5  # 64                   
 Z_dim = 256**2                                    
 #X_dim = mnist.train.images.shape[1]    # ex: 784=28x28
 X_dim = 256**2
 h_dim = 128
-coeff = 0.0000001
+coeff = 1e-7
 
 sess = tf.Session()
  
@@ -55,7 +55,7 @@ data=[]
 for i in range(L_data):
     #data.append(np.reshape(rgb2gray(imread('./abbey/' + places[i])),(1,X_dim)))
     data.append(np.reshape(rgb2gray(imread('./abbey/' + places[i])),(1,X_dim))/256)
-print(data[0])
+    print('Image ',i+1,' : ',places[i])
 
 def xavier_init(size):
     in_dim = size[0]
@@ -256,7 +256,7 @@ for it in range(num_it):
      
     X_mb, index_in_epoch = next_batch(mb_size,index_in_epoch)
     
-    Y_mb=np.reshape(X_mb[i%L_data],(256,256))
+    Y_mb=np.reshape(X_mb[i%len(X_mb)],(256,256))
     Y_mb = np.stack([Y_mb,Y_mb,Y_mb],axis=2)
     Y_mb = np.expand_dims(Y_mb,0)
     
@@ -265,8 +265,8 @@ for it in range(num_it):
     #    Y_mb[p] = np.stack([Y_mb[p],Y_mb[p],Y_mb[p]],axis=2)
     #    Y_mb[p] = np.expand_dims(Y_mb[p],0)
     Z1 = np.random.rand(1,65536)
-    _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: X_mb[i%L_data], Z: X_mb[i%L_data]})
-    _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: X_mb[i%L_data], orig_image: Y_mb})
+    _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: X_mb[i%len(X_mb)], Z: X_mb[i%len(X_mb)]})
+    _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: X_mb[i%len(X_mb)], orig_image: Y_mb})
     # orig_image: X_mb[0]
 
     
