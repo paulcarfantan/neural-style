@@ -54,6 +54,8 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
 
     vgg_weights, vgg_mean_pixel = vgg.load_net(network)         
 
+    print('\n',vgg_mean_pixel.shape,'\n')
+
     layer_weight = 1.0
     style_layers_weights = {}
     for style_layer in STYLE_LAYERS:
@@ -197,13 +199,13 @@ def stylize(network, initial, initial_noiseblend, content, styles, matte,
         loss = content_loss + style_loss + matte_loss + tv_loss    # make alpha etc appear (coeffs)
 
         # optimizer setup
-        train_step = tf.train.AdamOptimizer(learning_rate, beta1, beta2, epsilon).minimize(loss)       # (op√©ration qui me a jour les variables pour que total loss soit minimis√) 
+        train_step = tf.train.AdamOptimizer(learning_rate, beta1, beta2, epsilon).minimize(loss)       # (operation qui met a jour les variables pour que total loss soit minimise) 
          # quelles variables ???
         
         def print_progress():
             stderr.write('  content loss: %g\n' % content_loss.eval())
             stderr.write('    style loss: %g\n' % style_loss.eval())
-            stderr.write('    matte loss: %g\n' % matte_loss.eval())
+           # stderr.write('    matte loss: %g\n' % matte_loss.eval())
             stderr.write('      GAN loss: %g\n' % GAN_loss.eval())
             stderr.write('       tv loss: %g\n' % tv_loss.eval())
             stderr.write('    total loss: %g\n' % loss.eval())

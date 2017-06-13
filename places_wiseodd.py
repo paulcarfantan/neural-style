@@ -70,7 +70,7 @@ D_W1 = tf.Variable(xavier_init([X_dim, h_dim]))
 D_b1 = tf.Variable(tf.zeros(shape=[X_dim, h_dim]))
 
 D_W2 = tf.Variable(xavier_init([h_dim, 1]))
-D_b2 = tf.Variable(tf.zeros(shape=[h_dim, 1]))
+D_b2 = tf.Variable(tf.zeros(shape=[X_dim, 1]))
 
 theta_D = [D_W1, D_W2, D_b1, D_b2]  # Parameters to optimize
 # => initial : D_W = random & D_b = zeros ; then = optimize to get best discriminator
@@ -106,8 +106,9 @@ def generator(z):
     #inputs = tf.concat(axis=1, values=[z, y])
     inputs=z
     G_h1 = tf.nn.relu(tf.matmul(inputs, G_W1) + G_b1)
-    G_log_prob = tf.matmul(G_h1, G_W2) + G_b2
+    G_log_prob = tf.matmul(G_h1, G_W2) + G_b2  # dim = (Z_dim,X_dim)
     G_prob = tf.nn.sigmoid(G_log_prob)
+    print("input:", inputs.shape, "G_h1:", G_h1.get_shape().as_list(), "G_log:", G_log_prob.get_shape().as_list(), "G_prob:", G_prob.get_shape().as_list())
     return G_prob
 
 
@@ -120,12 +121,12 @@ def plot(sample):
         #plt.imshow(sample.reshape(256,256), cmap='Greys_r')
     fig = plt.figure()
 
-    ax = plt.gca()
-    plt.axis('off')
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
-    ax.set_aspect('equal')
-    plt.imshow(sample.reshape(256, 256),cmap='Greys_r')
+    #ax = plt.gca()
+    #plt.axis('off')
+    #ax.set_xticklabels([])
+    #ax.set_yticklabels([])
+    #ax.set_aspect('equal')
+    plt.imshow(sample,cmap='Greys_r')
     return fig
 
 """ Feature Loss """
@@ -160,7 +161,7 @@ for layer in CONTENT_LAYERS:
 D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_real, labels=tf.ones_like(D_logit_real)))
 # labels = matrice de 1, même type que logits
 D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.zeros_like(D_logit_fake)))
-D_loss = D_loss_real + D_loss_fake + feat_loss
+D_loss = D_loss_real + D_loss_fake + 0.000001*feat_loss
 G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.ones_like(D_logit_fake)))
 # G_loss est basée sur D_logit_fake !
 
@@ -196,8 +197,10 @@ for it in range(num_it):
        # for k in range(n_sample): 
        #     y_sample[k,np.random.randint(0,y_dim)]=1
 
-        sample = sess.run(G_sample, feed_dict={Z: data[i]})    # samples.shape = (16 , 784)   => une colonne par image, n_mb lignes
-
+        sample = sess.run(G_sample, feed_dict={Z: data[i]})    # samples.shape = (256,256)
+        print('\n sample.shape',sample.shape)
+        print('\n 1st row sample',sample[0,0:20])
+        print('\n 2nd row sample',sample[1,0:20])
         fig = plot(sample)
         plt.savefig('./newdataset/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
         i += 1
@@ -220,7 +223,7 @@ for it in range(num_it):
     
     
 #    b = it % (int(L_data/mb_size)-1)     # it congru a b modulo ...
- #   if it >= L_data/mb_size : # (si pas assez d'éléments dans data pour finir le batch)
+#    if it >= L_data/mb_size : # (si pas assez d'éléments dans data pour finir le batch)
 #        np.random.shuffle(data)
 
 #    liste = [data[j] for j in range(b*mb_size,(b+1)*mb_size)]  # /!\ cas ou num_it*mb_size > nombre de samples (len(places) ?) /!\
@@ -243,8 +246,8 @@ for it in range(num_it):
         #print('y = ',y)
         if it != 0 and it != num_it:     # temps d'execution
             t = (st - zerotime) * (num_it - it) / it
-            print('time since last printing : {:.4} '.format(delta),' sec)')
-            print('ends approximately in : {:.4} '.format(t),' sec')
+            print('time since last printing : {:.4} '.format(delta),'sec')
+            print('ends approximately in : {:.4} '.format(t),'sec')
             print('(',int(t/60),'min',int((t/60-int(t/60))*60),'sec )')
     #print('y_sample = ',y_sample)
     #print('samples[1,:].shape = ',samples[1,:].shape)
