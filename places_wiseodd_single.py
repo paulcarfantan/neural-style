@@ -68,10 +68,10 @@ X = tf.placeholder(tf.float32, shape=[None, X_dim])
 
 D_W1 = tf.Variable(xavier_init([X_dim, h_dim]))
 # X_dim + y_dim plutôt que X_dim comme ça on train non seulement à dire si l'image appartient ou non au dataset original, MAIS AUSSI dire à quel label elle correspond !
-D_b1 = tf.Variable(tf.zeros(shape=[None,h_dim]))
+D_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
 
 D_W2 = tf.Variable(xavier_init([h_dim, 1]))
-D_b2 = tf.Variable(tf.zeros(shape=[None,1]))
+D_b2 = tf.Variable(tf.zeros(shape=[1]))
 
 theta_D = [D_W1, D_W2, D_b1, D_b2]  # Parameters to optimize
 # => initial : D_W = random & D_b = zeros ; then = optimize to get best discriminator
@@ -93,10 +93,10 @@ def discriminator(x):                                 # Single layer network
 Z = tf.placeholder(tf.float32, shape=[None, Z_dim])
 
 G_W1 = tf.Variable(xavier_init([Z_dim, h_dim])) 
-G_b1 = tf.Variable(tf.zeros(shape=[None,h_dim]))
+G_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
 
 G_W2 = tf.Variable(xavier_init([h_dim, X_dim]))
-G_b2 = tf.Variable(tf.zeros(shape=[None,X_dim]))
+G_b2 = tf.Variable(tf.zeros(shape=[X_dim]))
 
 theta_G = [G_W1, G_W2, G_b1, G_b2]
 
@@ -128,7 +128,7 @@ def plot(sample):
     #ax.set_xticklabels([])
     #ax.set_yticklabels([])
     #ax.set_aspect('equal')
-    plt.imshow(sample,cmap='Greys_r')
+    plt.imshow(sample)
     return fig
 
 G_sample = generator(Z)    # Z = random input images to begin with.
@@ -148,14 +148,17 @@ network = 'imagenet-vgg-verydeep-19.mat'
 vgg_weights, vgg_mean_pixel = vgg.load_net(network)         
 print(5)
 orig_image = tf.placeholder('float', shape = shape)
-orig_content = vgg.preprocess(orig_image, vgg_mean_pixel)
+print(orig_image)
+orig_content = vgg.preprocess(orig_image, vgg_mean_pixel)  #tensor (1,256,256,3)
+print(orig_content)
 print('G_sample.shape',G_sample.shape)
 G_sample = tf.reshape(G_sample,(256,256))
-G_sample = tf.stack([G_sample,G_sample,G_sample],axis=2)
+G_sample = tf.stack([G_sample,G_sample,G_sample],axis=2)   #tensor (256,256,3)
 print('G_sample.shape',G_sample.shape)
-gen_content = np.array([vgg.preprocess(G_sample, vgg_mean_pixel)])
+gen_content = vgg.preprocess(G_sample, vgg_mean_pixel)
+gen_content = tf.expand_dims(gen_content,0)
 print('ok')
-orig_net = vgg.net_preloaded(vgg_weights, sess.run(orig_content.eval(session=sess), pooling))
+orig_net = vgg.net_preloaded(vgg_weights, orig_content, pooling)
 print('ok1')
 gen_net = vgg.net_preloaded(vgg_weights, gen_content, pooling)
 #content_pre = np.array([vgg.preprocess(content, vgg_mean_pixel)])
@@ -186,7 +189,7 @@ if not os.path.exists('out/'):
 i = 0 
 zerotime = time.time()
 st = time.time()
-num_it = 10000
+num_it = 100000
 index_in_epoch = 0
 
 saver = tf.train.Saver({
@@ -246,7 +249,7 @@ for it in range(num_it):
 
     #Z_sample = sample_Z(mb_size, Z_dim)
     
-    print('content_pre.shape', content_pre.shape)
+    #print('content_pre.shape', content_pre.shape)
     #content_pre = np.array([vgg.preprocess(content, vgg_mean_pixel)])
     _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: X_mb[0], Z: X_mb[0]})
     _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: X_mb[0]})
