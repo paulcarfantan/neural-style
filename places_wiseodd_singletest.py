@@ -40,12 +40,12 @@ def gray2rgb(gray):
 
 
 L_data = 10
-mb_size = 5  # 64                   
+mb_size = 2  # 64                   
 Z_dim = 256**2                                    
-#X_dim = mnist.train.images.shape[1]    # ex: 784=28x28
 X_dim = 256**2
 h_dim = 128
 coeff = 1e-7
+num_it = 100000
 
 sess = tf.Session()
  
@@ -72,21 +72,22 @@ def next_batch(batch_size,index_in_epoch):
     else:
         index_in_epoch += batch_size
     end = index_in_epoch 
-    return data[start:end], index_in_epoch
+    D = np.vstack(data[start:end])
+    return D, index_in_epoch
 
 
 
 print(2)
 """ Discriminator Net model """
-X = tf.placeholder(tf.float32, shape=[None, X_dim])
+X = tf.placeholder(tf.float32, shape=[mb_size, X_dim])
 #y = tf.placeholder(tf.float32, shape=[None, y_dim])
 
 D_W1 = tf.Variable(xavier_init([X_dim, h_dim]))
 # X_dim + y_dim plutôt que X_dim comme ça on train non seulement à dire si l'image appartient ou non au dataset original, MAIS AUSSI dire à quel label elle correspond !
-D_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
+D_b1 = tf.Variable(tf.zeros(shape=[mb_size,h_dim]))
 
 D_W2 = tf.Variable(xavier_init([h_dim, 1]))
-D_b2 = tf.Variable(tf.zeros(shape=[1]))
+D_b2 = tf.Variable(tf.zeros(shape=[mb_size,1]))
 
 theta_D = [D_W1, D_W2, D_b1, D_b2]  # Parameters to optimize
 # => initial : D_W = random & D_b = zeros ; then = optimize to get best discriminator
@@ -105,13 +106,13 @@ def discriminator(x):                                 # Single layer network
 
 
 """ Generator Net model """
-Z = tf.placeholder(tf.float32, shape=[None, Z_dim])
+Z = tf.placeholder(tf.float32, shape=[mb_size, Z_dim])
 
 G_W1 = tf.Variable(xavier_init([Z_dim, h_dim])) 
-G_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
+G_b1 = tf.Variable(tf.zeros(shape=[mb_size,h_dim]))
 
 G_W2 = tf.Variable(xavier_init([h_dim, X_dim]))
-G_b2 = tf.Variable(tf.zeros(shape=[X_dim]))
+G_b2 = tf.Variable(tf.zeros(shape=[mb_size,X_dim]))
 
 theta_G = [G_W1, G_W2, G_b1, G_b2]
 
@@ -129,21 +130,28 @@ def generator(z):
     return G_prob
 
 
-def sample_Z(m, n):
-    return np.random.uniform(-1., 1., size=[m, n])
+# def sample_Z(m, n):
+    # return np.random.uniform(-1., 1., size=[m, n])
 
 
-def plot(sample):
-    #for i, sample in enumerate(samples):
-        #plt.imshow(sample.reshape(256,256), cmap='Greys_r')
+def plot(sample,X):
     fig = plt.figure()
+    gs = gridspec.GridSpec(mb_size,2)
+    gs.update(wspace=0.05,hspace=0.05)
 
-    #ax = plt.gca()
-    plt.axis('off')
-    #ax.set_xticklabels([])
-    #ax.set_yticklabels([])
-    #ax.set_aspect('equal')
-    plt.imshow(sample)
+    for i, sample in enumerate(samples):
+        ax = plt.subplot(gs[2*i])
+        plt.axis('off')
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        #ax.set_aspect('equal')
+        plt.imshow(np.reshape(rgb2gray(sample),(256,256)), cmap='Greys_r')
+        ax = plt.subplot(gs[2*i+1])
+        plt.axis('off')
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        plt.imshow(np.reshape(rgb2gray(X[i]),(256,256)), cmap='Greys_r')
+
     return fig
 
 G_sample = generator(Z)    # Z = random input images to begin with.
@@ -156,7 +164,8 @@ D_fake, D_logit_fake = discriminator(G_sample)  # G_sample = generated dataset (
 #VGG
 #content = imread('abbeyexample_copy.png')/256
 #content = gray2rgb(rgb2gray(content))
-shape = (1,256,256,3)
+# shape = (1,256,256,3)
+shape = (mb_size, 256, 256, 3)
 pooling = 'avg'
 CONTENT_LAYERS = ('relu4_2', 'relu5_2')
 network = 'imagenet-vgg-verydeep-19.mat'
@@ -167,12 +176,11 @@ print(orig_image)
 orig_content = vgg.preprocess(orig_image, vgg_mean_pixel)  #tensor (1,256,256,3)
 print(orig_content)
 print('G_sample.shape',G_sample.shape)
-G_sample_dim = G_sample
-G_sample = tf.reshape(G_sample,(256,256))
-G_sample = tf.stack([G_sample,G_sample,G_sample],axis=2)   #tensor (256,256,3)
+G_sample = tf.reshape(G_sample,(mb_size,256,256))
+G_sample = tf.stack([G_sample,G_sample,G_sample],axis=3)   #tensor (256,256,3)
 print('G_sample.shape',G_sample.shape)
 gen_content = vgg.preprocess(G_sample, vgg_mean_pixel)
-gen_content = tf.expand_dims(gen_content,0)
+# gen_content = tf.expand_dims(gen_content,0)
 print('ok')
 orig_net = vgg.net_preloaded(vgg_weights, orig_content, pooling)
 print('ok1')
@@ -205,75 +213,78 @@ if not os.path.exists('out/'):
 i = 0 
 zerotime = time.time()
 st = time.time()
-num_it = 100000
 index_in_epoch = 0
+D_loss_list = []
+G_loss_list = []
+
 
 saver = tf.train.Saver({
     "D_W1": D_W1, "D_W2": D_W2, "D_b1": D_b1, "D_b2": D_b2,
     "G_W1": G_W1, "G_W2": G_W2, "G_b1": G_b1, "G_b2": G_b2})
+print('orig_image', orig_image)
 
-for it in range(num_it):
-    if it % 1000 == 0:
+for it in range(0,num_it):
+
+
+    if it>0:
+        last_X = X_mb
+    X_mb = []
+    Y_mb = [0 for l in range(0,mb_size)]
+    for k in range(0,mb_size):
+        a = np.random.randint(0,L_data-1)
+        X_mb.append(data[a])
+    #for k in range(0,mb_size)
+    #    X_mb.append(data[it%L_data])
+    X_mb = np.vstack(X_mb)
+    #print('X ',X_mb.shape)
+    
+    
+    for p in range(0,len(X_mb)):         
+    #    print('0',X_mb[p].shape)
+        Y_mb[p] = np.reshape(X_mb[p],(256,256))
+    #    print('1',Y_mb[p].shape)
+        Y_mb[p] = np.stack([Y_mb[p],Y_mb[p],Y_mb[p]],axis=2)
+    #    print('2',Y_mb[p].shape)
+    Y_mb = np.stack(Y_mb,axis=0)
+    #print('Y ',Y_mb.shape)
+    
+    if it % 100 == 0:
+        print(it)
+
+    if  it % 1000 == 0:
 
         delta = time.time() - st
         st = time.time()
-        n_sample = 1
+        # n_sample = 1
+        #if it>0:
+        #    last_X = X_mb 
+        #X_mb = []
+        #Y_mb = []
+        #for k in range(0,mb_size):
+        #    a = np.random.randint(0,L_data-1)
+        #    X_mb.append(data[a])
+        #X_mb = np.vstack(X_mb)
 
-       # Z_sample = sample_Z(n_sample, Z_dim)   # random matrix shape (16,100)
-       # y_sample = np.ones(shape=[n_sample, y_dim]) * 0.1
-       # y_sample = np.zeros(shape=[n_sample, y_dim])
-       # y_sample[:, 8] = 1
-       # y_sample=np.random.rand(n_sample, y_dim)
-       # y_sample=np.transpose(y_sample)/np.sum(y_sample,axis=1)
-       # y_sample=np.transpose(y_sample)
-       # y_sample = np.zeros(shape=[n_sample, y_dim])
-       # for k in range(n_sample): 
-       #     y_sample[k,np.random.randint(0,y_dim)]=1
-
-        sample = sess.run(G_sample, feed_dict={Z: data[i%L_data]})    # samples.shape = (256,256)
-        print('\n sample.shape',sample.shape)
-        fig = plot(sample)
-        plt.savefig('./newdataset/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
+        if it>0:
+            samples = sess.run(G_sample, feed_dict={Z: X_mb})
+            print('\n samples.shape',samples.shape)
+            fig = plot(samples,last_X)
+            plt.savefig('./newdataset/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
+            plt.close(fig)
         i += 1
-        plt.close(fig)
-    
-      
-    
-#    b = it % (int(L_data/mb_size)-1)     # it congru a b modulo ...
-#    if it >= L_data/mb_size : # (si pas assez d'éléments dans data pour finir le batch)
-#        np.random.shuffle(data)
 
-#    liste = [data[j] for j in range(b*mb_size,(b+1)*mb_size)]  # /!\ cas ou num_it*mb_size > nombre de samples (len(places) ?) /!\
-#    X_mb = np.vstack(liste)     # shape : (mb_size, X_dim^2)
 
-   # X_mb, _ = mnist.train.next_batch(mb_size)
-   # y_mb = labels des images du dataset original
+    _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: X_mb, Z: X_mb})
+    _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: X_mb, orig_image: Y_mb})
 
-    #Z_sample = sample_Z(mb_size, Z_dim)
-    
-    #print('content_pre.shape', content_pre.shape)
-    #content_pre = np.array([vgg.preprocess(content, vgg_mean_pixel)])
-     
-    X_mb, index_in_epoch = next_batch(mb_size,index_in_epoch)
-    
-    Y_mb=np.reshape(X_mb[i%len(X_mb)],(256,256))
-    Y_mb = np.stack([Y_mb,Y_mb,Y_mb],axis=2)
-    Y_mb = np.expand_dims(Y_mb,0)
-    
-    #for p in range(0,len(X_mb)):
-    #    Y_mb.append(np.reshape(X_mb[p],(256,256)))
-    #    Y_mb[p] = np.stack([Y_mb[p],Y_mb[p],Y_mb[p]],axis=2)
-    #    Y_mb[p] = np.expand_dims(Y_mb[p],0)
-    Z1 = np.random.rand(1,65536)
-    _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: X_mb[i%len(X_mb)], Z: X_mb[i%len(X_mb)]})
-    _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: X_mb[i%len(X_mb)], orig_image: Y_mb})
-    # orig_image: X_mb[0]
 
-    
     if it % 1000 == 0:
+
         print('Iter: {}'.format(it))
         print('D_loss: {:.4}'.format(D_loss_curr))
         print('G_loss: {:.4}'.format(G_loss_curr),'( includes feat_loss )')
+        D_loss_list.append(D_loss_curr)
+        G_loss_list.append(G_loss_curr)
         #print('y = ',y)
         if it != 0 and it != num_it:     # temps d'execution
             t = (st - zerotime) * (num_it - it) / it
