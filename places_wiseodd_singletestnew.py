@@ -39,7 +39,7 @@ def gray2rgb(gray):
         return gray
 
 
-L_data = 10
+L_data = 9
 mb_size = 2 
 Z_dim = 256                                    
 X_dim = 256
@@ -54,7 +54,7 @@ places = os.listdir('./abbey/')
 data=[]
 for i in range(L_data):
     #data.append(np.reshape(rgb2gray(imread('./abbey/' + places[i])),(1,X_dim)))
-    data.append(rgb2gray(imread('./abbey/' + places[i]))/256)
+    data.append(gray2rgb(imread('./abbey/' + places[i]))/256)
     print('Image ',i+1,' : ',places[i])
     print('data[i].shape',data[i].shape)
 
@@ -80,10 +80,10 @@ def next_batch(batch_size,index_in_epoch):
 
 print(2)
 """ Discriminator Net model """
-X = tf.placeholder(tf.float32, shape=[mb_size, X_dim, X_dim])
+X = tf.placeholder(tf.float32, shape=[mb_size, X_dim, X_dim, 3])
 #y = tf.placeholder(tf.float32, shape=[None, y_dim])
 
-D_W1 = tf.Variable(xavier_init([X_dim, X_dim, h_dim]))
+D_W1 = tf.Variable(xavier_init([X_dim, X_dim, 3, h_dim]))
 # X_dim + y_dim plutôt que X_dim comme ça on train non seulement à dire si l'image appartient ou non au dataset original, MAIS AUSSI dire à quel label elle correspond !
 D_b1 = tf.Variable(tf.zeros(shape=[mb_size,h_dim]))
 
@@ -99,7 +99,7 @@ print(3)
 def discriminator(x):                                 # Single layer network 
     #inputs = tf.concat(axis=1, values=[x, y])
     inputs=x
-    D_h1 = tf.nn.relu(tf.einsum('ijk,jkl->il',inputs, D_W1) + D_b1)    # = max( 0 , inputs × D_W1 + D_b1 )      
+    D_h1 = tf.nn.relu(tf.einsum('ijkl,jklm->im',inputs, D_W1) + D_b1)    # = max( 0 , inputs × D_W1 + D_b1 )      
     D_logit = tf.matmul(D_h1, D_W2) + D_b2               # include weights and biases
     D_prob = tf.nn.sigmoid(D_logit)                      # to have a result between 0 and 1 (probability)
 
@@ -107,13 +107,13 @@ def discriminator(x):                                 # Single layer network
 
 
 """ Generator Net model """
-Z = tf.placeholder(tf.float32, shape=[mb_size, Z_dim, Z_dim])
+Z = tf.placeholder(tf.float32, shape=[mb_size, Z_dim, Z_dim, 3])
 
-G_W1 = tf.Variable(xavier_init([Z_dim, Z_dim, h_dim])) 
+G_W1 = tf.Variable(xavier_init([Z_dim, Z_dim, 3, h_dim])) 
 G_b1 = tf.Variable(tf.zeros(shape=[mb_size,h_dim]))
 
-G_W2 = tf.Variable(xavier_init([h_dim,X_dim,X_dim]))
-G_b2 = tf.Variable(tf.zeros(shape=[mb_size,X_dim,X_dim]))
+G_W2 = tf.Variable(xavier_init([h_dim,X_dim,X_dim, 3]))
+G_b2 = tf.Variable(tf.zeros(shape=[mb_size,X_dim,X_dim, 3]))
 
 theta_G = [G_W1, G_W2, G_b1, G_b2]
 
@@ -124,8 +124,8 @@ print(4)
 
 def generator(z):
     inputs=z                                    # shape = (mb_size, Z_dim, Z_dim)
-    G_h1 = tf.nn.relu(tf.einsum('ijk,jkl->il', inputs, G_W1) + G_b1)
-    G_log_prob = tf.einsum('ij,jkl->ikl',G_h1, G_W2) + G_b2   # shape = (mb_size, X_dim, X_dim)
+    G_h1 = tf.nn.relu(tf.einsum('ijkl,jklm->im', inputs, G_W1) + G_b1)
+    G_log_prob = tf.einsum('ij,jklm->iklm',G_h1, G_W2) + G_b2   # shape = (mb_size, X_dim, X_dim)
     G_prob = tf.nn.sigmoid(G_log_prob)
     print("input:", inputs.shape, "G_log:", G_log_prob.get_shape().as_list(), "G_prob:", G_prob.get_shape().as_list())
     return G_prob
@@ -146,12 +146,12 @@ def plot(sample,X):
         ax.set_xticklabels([])
         ax.set_yticklabels([])
         #ax.set_aspect('equal')
-        plt.imshow(rgb2gray(sample), cmap='Greys_r')
+        plt.imshow(gray2rgb(sample))
         ax = plt.subplot(gs[2*i+1])
         plt.axis('off')
         ax.set_xticklabels([])
         ax.set_yticklabels([])
-        plt.imshow(np.reshape(rgb2gray(X[i]),(256,256)), cmap='Greys_r')
+        plt.imshow(np.reshape(gray2rgb(X[i]),(256,256,3)))
 
     return fig
 
@@ -178,8 +178,8 @@ orig_content = vgg.preprocess(orig_image, vgg_mean_pixel)  #tensor (1,256,256,3)
 print(orig_content)
 print('G_sample.shape',G_sample.shape)
 #G_sample = tf.reshape(G_sample,(mb_size,256,256))
-G_sample = tf.stack([G_sample,G_sample,G_sample],axis=3)   #tensor (256,256,3)
-print('G_sample.shape',G_sample.shape)
+#G_sample = tf.stack([G_sample,G_sample,G_sample],axis=3)   #tensor (256,256,3)
+#print('G_sample.shape',G_sample.shape)
 gen_content = vgg.preprocess(G_sample, vgg_mean_pixel)
 # gen_content = tf.expand_dims(gen_content,0)
 print('ok')
@@ -280,7 +280,7 @@ for it in range(0,num_it):
 
 
     _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: X_mb, Z: X_mb})
-    _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: X_mb, orig_image: Y_mb})
+    _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: X_mb, orig_image: X_mb})
 
 
     if it % 1000 == 0:
