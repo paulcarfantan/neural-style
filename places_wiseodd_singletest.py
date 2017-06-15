@@ -21,7 +21,7 @@ import time
 from PIL import Image
 import scipy.misc
 from scipy.misc import imread
-
+from plotloss import plotloss2y
 
 def rgb2gray(rgb):
     if np.ndim(rgb)==3:
@@ -39,8 +39,8 @@ def gray2rgb(gray):
         return gray
 
 
-L_data = 10
-mb_size = 2  # 64                   
+L_data = 11
+mb_size = 2 
 Z_dim = 256**2                                    
 X_dim = 256**2
 h_dim = 128
@@ -223,6 +223,7 @@ saver = tf.train.Saver({
     "G_W1": G_W1, "G_W2": G_W2, "G_b1": G_b1, "G_b2": G_b2})
 print('orig_image', orig_image)
 
+
 for it in range(0,num_it):
 
 
@@ -230,11 +231,11 @@ for it in range(0,num_it):
         last_X = X_mb
     X_mb = []
     Y_mb = [0 for l in range(0,mb_size)]
-    for k in range(0,mb_size):
-        a = np.random.randint(0,L_data-1)
-        X_mb.append(data[a])
-    #for k in range(0,mb_size)
-    #    X_mb.append(data[it%L_data])
+    #for k in range(0,mb_size):
+    #    a = np.random.randint(0,L_data-1)
+    #    X_mb.append(data[a])
+    for k in range(0,mb_size):              # 'sliding window'
+        X_mb.append(data[(it+k)%L_data])
     X_mb = np.vstack(X_mb)
     #print('X ',X_mb.shape)
     
@@ -248,7 +249,7 @@ for it in range(0,num_it):
     Y_mb = np.stack(Y_mb,axis=0)
     #print('Y ',Y_mb.shape)
     
-    if it % 100 == 0:
+    if it % 100 == 0 and it % 1000 != 0:
         print(it)
 
     if  it % 1000 == 0:
@@ -267,7 +268,7 @@ for it in range(0,num_it):
 
         if it>0:
             samples = sess.run(G_sample, feed_dict={Z: X_mb})
-            print('\n samples.shape',samples.shape)
+            #print('\n samples.shape',samples.shape)
             fig = plot(samples,last_X)
             plt.savefig('./newdataset/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
             plt.close(fig)
@@ -280,11 +281,12 @@ for it in range(0,num_it):
 
     if it % 1000 == 0:
 
-        print('Iter: {}'.format(it))
+        print('\n   Iter: {}'.format(it))
         print('D_loss: {:.4}'.format(D_loss_curr))
         print('G_loss: {:.4}'.format(G_loss_curr),'( includes feat_loss )')
         D_loss_list.append(D_loss_curr)
         G_loss_list.append(G_loss_curr)
+        plotloss2y(D_loss_list,G_loss_list,'./newdataset/plotloss.jpg')
         #print('y = ',y)
         if it != 0 and it != num_it:     # temps d'execution
             t = (st - zerotime) * (num_it - it) / it
