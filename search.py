@@ -1,10 +1,9 @@
 from argparse import ArgumentParser
-import math
 import numpy as np
 import os
-from PIL import Image
 import scipy.misc
 import shutil
+
 
 def build_parser():
     parser = ArgumentParser()
@@ -22,14 +21,15 @@ def build_parser():
 
 
 def score_img(content, fname):
-    '''
-    Return the scores for a given image, compared with content image
+    '''Return the scores for a given image, compared with content image
+
     '''
     return np.random.rand(len(content))
 
 
 def search_dir(content, style_score, style_file, base_dir, recurse):
-    '''
+    '''Search a directory for images
+
     Go through a directory and update the best style score and style file
     matrices based on the scores of all images in the directory. If recurse is
     true, go through any sub-directories to look for new images.
@@ -53,7 +53,8 @@ def search_dir(content, style_score, style_file, base_dir, recurse):
 
 
 def main():
-    '''
+    '''Search for similar images
+
     Search the style directory for images that closely resemble each image in
     the content directory. Save those images in an output directory folder
     corresponding to each content image, renamed as their matching rank number.
@@ -63,7 +64,7 @@ def main():
     options = parser.parse_args()
 
     content_files = os.listdir(options.content_dir)
-    content_images = [scipy.misc.imread(os.path.join(options.content_dir,f))
+    content_images = [scipy.misc.imread(os.path.join(options.content_dir, f))
                       for f in content_files]
 
     # n_content by n_style matrix and list to store the best style images
@@ -79,13 +80,13 @@ def main():
 
     if np.any(np.isinf(final_style_score)):
         inf_total = np.sum(np.isinf(final_style_score))
-        raise Error(('%d out of %d style images not found.'
-                     % (inf_total, n_total)) +
-                    'Try rerunning with a smaller n-style.')
+        print('%d out of %d style images not found.' % (inf_total, n_total),
+              'Try rerunning with a smaller n-style.')
+        raise
 
-    asort = final_style_score.argsort()
-    sorted_files = final_style_file[np.indices((n_content, options.n_style))[0],
-                                    final_style_score.argsort()]
+    sorted_files = final_style_file[
+        np.indices((n_content, options.n_style))[0],
+        final_style_score.argsort()]
 
     format_str = '{0:0>%d}.{1}' % np.ceil(np.log10(n_total))
 
@@ -95,8 +96,8 @@ def main():
         print('Copying style files for %s' % fname)
         os.mkdir(os.path.join(options.output_dir, fname))
         for j in range(options.n_style):
-            img_ext = sorted_files[i,j].split('.')[-1]
-            shutil.copy(sorted_files[i,j], os.path.join(
+            img_ext = sorted_files[i, j].split('.')[-1]
+            shutil.copy(sorted_files[i, j], os.path.join(
                 options.output_dir, fname, format_str.format(j, img_ext)))
 
 
