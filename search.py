@@ -9,8 +9,8 @@ import vgg
 
 CONTENT_LAYERS = ('relu4_2', 'relu5_2')
 VGG_PATH = 'imagenet-vgg-verydeep-19.mat'
-IMG_X = 128
-IMG_Y = 128
+IMG_X = 64
+IMG_Y = 64
 
 def build_parser():
     parser = ArgumentParser()
@@ -44,6 +44,10 @@ def read_img(fname):
     image = scipy.misc.imread(fname)
     if image.ndim == 2:
         image = gray2rgb(image)
+    if image.ndim == 4:
+        image = image[:,:,:,0]
+    if image.shape[2] > 3:
+        image = image[:,:,:3]
     image = scipy.misc.imresize(image, (IMG_X, IMG_Y, 3))
     return image
 
@@ -71,7 +75,7 @@ def score_img(content_features, fname, vgg_weights, vgg_mean_pixel):
                     net[content_layer] - content_features[i][content_layer]))
             content_loss = reduce(tf.add, content_losses)
             scores[i] = content_loss.eval(feed_dict={image: style_pre})
-    print(fname, scores)
+    print(fname)
     return scores
 
 
