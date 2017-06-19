@@ -20,6 +20,8 @@ def build_parser():
                         help='style image directory')
     parser.add_argument('--n-style', dest='n_style', default=10, type=int,
                         help='number of style images to find')
+    parser.add_argument('--n-search', dest='n_search', default=100, type=int,
+                        help='number of images to search in each directory')
     parser.add_argument('--output-dir', dest='output_dir', default="output",
                         help='output image directory')
     parser.add_argument('--recurse', dest='recurse', default=True,
@@ -60,7 +62,7 @@ def score_img(content_features, fname, vgg_weights, vgg_mean_pixel):
         style = read_img(fname)
     except:
         # disregard file if it cannot be read as an image
-        return np.float('inf')
+        return np.float('inf')*np.ones(len(content_features))
 
     scores = np.zeros(len(content_features))
 
@@ -80,7 +82,7 @@ def score_img(content_features, fname, vgg_weights, vgg_mean_pixel):
 
 
 def search_dir(content, vgg_weights, vgg_mean_pixel, style_score, style_file,
-               base_dir, recurse):
+               base_dir, recurse, n_search):
     '''Search a directory for images
 
     Go through a directory and update the best style score and style file
@@ -89,20 +91,22 @@ def search_dir(content, vgg_weights, vgg_mean_pixel, style_score, style_file,
     '''
 
     print('Searching %s for images' % base_dir)
-    for f in os.listdir(base_dir):
+    files = os.listdir(base_dir)
+    for f in files[:n_search]:
         fname = os.path.join(base_dir, f)
         if os.path.isdir(fname) and recurse:
             style_score, style_file = search_dir(
                 content, vgg_weights, vgg_mean_pixel, style_score, style_file,
                 fname, recurse)
         else:
-            scores = score_img(content, fname, vgg_weights, vgg_mean_pixel)
-            for i, score in enumerate(scores):
-                maxi = style_score[i, :].argmax()
-                maxs = style_score[i, maxi]
-                if score < maxs:
-                    style_score[i, maxi] = score
-                    style_file[i, maxi] = fname
+            if f.endswith('.jpg') or f.endswith('.png'):
+                scores = score_img(content, fname, vgg_weights, vgg_mean_pixel)
+                for i, score in enumerate(scores):
+                    maxi = style_score[i, :].argmax()
+                    maxs = style_score[i, maxi]
+                    if score < maxs:
+                        style_score[i, maxi] = score
+                        style_file[i, maxi] = fname
     return style_score, style_file
 
 
@@ -142,7 +146,7 @@ def main():
 
     final_style_score, final_style_file = search_dir(
         content_features, vgg_weights, vgg_mean_pixel, best_style_score,
-        best_style_file, options.style_dir, options.recurse)
+        best_style_file, options.style_dir, options.recurse, options.n_search)
 
     if np.any(np.isinf(final_style_score)):
         inf_total = np.sum(np.isinf(final_style_score))
@@ -162,6 +166,7 @@ def main():
         print('Copying style files for %s' % fname)
         os.mkdir(os.path.join(options.output_dir, fname))
         for j in range(options.n_style):
+            print(sorted_files[i,j])
             img_ext = sorted_files[i, j].split('.')[-1]
             shutil.copy(sorted_files[i, j], os.path.join(
                 options.output_dir, fname, format_str.format(j, img_ext)))
