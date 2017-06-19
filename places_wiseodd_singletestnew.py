@@ -39,16 +39,16 @@ def gray2rgb(gray):
         return gray
 
 
-L_data = 9
-mb_size = 2 
+L_data = 1
+mb_size = 1 
 Z_dim = 256                                    
 X_dim = 256
-h_dim = 128
-coeff = 1e-7
+h_dim = 2000
+coeff = 0    # 1e-7 in running program (ends at 18h)
 num_it = 100000
 
 sess = tf.Session()
- 
+
 print(1)
 places = os.listdir('./abbey/')
 data=[]
@@ -83,14 +83,16 @@ print(2)
 X = tf.placeholder(tf.float32, shape=[mb_size, X_dim, X_dim, 3])
 #y = tf.placeholder(tf.float32, shape=[None, y_dim])
 
-D_W1 = tf.Variable(xavier_init([X_dim, X_dim, 3, h_dim]))
+D_W1r = tf.Variable(xavier_init([X_dim, X_dim, h_dim]))
+D_W1g = tf.Variable(xavier_init([X_dim, X_dim, h_dim]))
+D_W1b = tf.Variable(xavier_init([X_dim, X_dim, h_dim]))
 # X_dim + y_dim plutôt que X_dim comme ça on train non seulement à dire si l'image appartient ou non au dataset original, MAIS AUSSI dire à quel label elle correspond !
 D_b1 = tf.Variable(tf.zeros(shape=[mb_size,h_dim]))
 
 D_W2 = tf.Variable(xavier_init([h_dim, 1]))
 D_b2 = tf.Variable(tf.zeros(shape=[mb_size,1]))
 
-theta_D = [D_W1, D_W2, D_b1, D_b2]  # Parameters to optimize
+theta_D = [D_W1r, D_W1g, D_W1b, D_W2, D_b1, D_b2]  # Parameters to optimize
 # => initial : D_W = random & D_b = zeros ; then = optimize to get best discriminator
 # D_W1 : shape=(794,128)  ;  D_W2 : shape=(128,1)  Weights pour passer d'un layer à l'autre  (input -->D_W1--> relu -->D_W2--> result)
 # D_b1 : shape=(128,)  ;  D_b2 : shape=(1,)    Biases
@@ -99,7 +101,9 @@ print(3)
 def discriminator(x):                                 # Single layer network 
     #inputs = tf.concat(axis=1, values=[x, y])
     inputs=x
-    D_h1 = tf.nn.relu(tf.einsum('ijkl,jklm->im',inputs, D_W1) + D_b1)    # = max( 0 , inputs × D_W1 + D_b1 )      
+    mat = tf.add(tf.einsum('ijk,jkl->il',inputs[:,:,:,0], D_W1r),tf.einsum('ijk,jkl->il',inputs[:,:,:,1], D_W1g))
+    mat = tf.add(mat,tf.einsum('ijk,jkl->il',inputs[:,:,:,2], D_W1b))
+    D_h1 = tf.nn.relu(mat + D_b1)    # = max( 0 , inputs × D_W1 + D_b1 )      
     D_logit = tf.matmul(D_h1, D_W2) + D_b2               # include weights and biases
     D_prob = tf.nn.sigmoid(D_logit)                      # to have a result between 0 and 1 (probability)
 
@@ -109,13 +113,19 @@ def discriminator(x):                                 # Single layer network
 """ Generator Net model """
 Z = tf.placeholder(tf.float32, shape=[mb_size, Z_dim, Z_dim, 3])
 
-G_W1 = tf.Variable(xavier_init([Z_dim, Z_dim, 3, h_dim])) 
+G_W1r = tf.Variable(xavier_init([Z_dim, Z_dim, h_dim])) 
+G_W1g = tf.Variable(xavier_init([Z_dim, Z_dim, h_dim]))   
+G_W1b = tf.Variable(xavier_init([Z_dim, Z_dim, h_dim]))   
+
 G_b1 = tf.Variable(tf.zeros(shape=[mb_size,h_dim]))
 
-G_W2 = tf.Variable(xavier_init([h_dim,X_dim,X_dim, 3]))
+G_W2r = tf.Variable(xavier_init([h_dim,X_dim,X_dim]))
+G_W2g = tf.Variable(xavier_init([h_dim,X_dim,X_dim]))
+G_W2b = tf.Variable(xavier_init([h_dim,X_dim,X_dim]))
+
 G_b2 = tf.Variable(tf.zeros(shape=[mb_size,X_dim,X_dim, 3]))
 
-theta_G = [G_W1, G_W2, G_b1, G_b2]
+theta_G = [G_W1r, G_W1g, G_W1b, G_W2r, G_W2g, G_W2b, G_b1, G_b2]
 
 
 #G_W1 : shape=(110,128)  ;  G_W2 : shape=(128,784)
@@ -124,8 +134,20 @@ print(4)
 
 def generator(z):
     inputs=z                                    # shape = (mb_size, Z_dim, Z_dim)
-    G_h1 = tf.nn.relu(tf.einsum('ijkl,jklm->im', inputs, G_W1) + G_b1)
-    G_log_prob = tf.einsum('ij,jklm->iklm',G_h1, G_W2) + G_b2   # shape = (mb_size, X_dim, X_dim)
+    mat1 = tf.add(tf.einsum('ijk,jkl->il',inputs[:,:,:,0], G_W1r),tf.einsum('ijk,jkl->il',inputs[:,:,:,1], G_W1g))
+    print('mat1 : 1')
+    mat1 = tf.add(mat1,tf.einsum('ijk,jkl->il',inputs[:,:,:,2], G_W1b))
+    print('mat1 : 2')
+
+    G_h1 = tf.nn.relu(mat1 + G_b1)
+    print('G_h1')
+    print('inputs[:,:,:,0]',inputs[:,:,:,0])
+    print('G_W2r',G_W2r)
+    mat2 = tf.add(tf.einsum('ijk,jkl->il',G_h1, G_W2r),tf.einsum('ijk,jkl->il',G_h1, G_W2g))
+    print('mat2 : 1')
+    mat2 = tf.add(mat2,tf.einsum('ijk,jkl->il',G_h1, G_W2b))
+    print('mat2 : 2')
+    G_log_prob = mat2 + G_b2   # shape = (mb_size, X_dim, X_dim)
     G_prob = tf.nn.sigmoid(G_log_prob)
     print("input:", inputs.shape, "G_log:", G_log_prob.get_shape().as_list(), "G_prob:", G_prob.get_shape().as_list())
     return G_prob
